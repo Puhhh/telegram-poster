@@ -1,0 +1,9 @@
+poll_interval: 5m
+request_timeout: 20s
+database_path: telegram-poster.sqlite
+
+feeds:
+  - name: example-news
+    url: https://example.com/rss.xml
+    channel: "@example_channel"
+    interval: 2m

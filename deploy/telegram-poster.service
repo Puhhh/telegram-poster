@@ -1,0 +1,25 @@
+[Unit]
+Description=Telegram RSS Poster
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=telegram-poster
+Group=telegram-poster
+WorkingDirectory=/opt/telegram-poster
+EnvironmentFile=/etc/telegram-poster/env
+ExecStart=/usr/local/bin/telegram-poster -config /etc/telegram-poster/config.yaml
+Restart=on-failure
+RestartSec=10s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/telegram-poster
+RestrictAddressFamilies=AF_INET AF_INET6
+LockPersonality=true
+MemoryDenyWriteExecute=true
+
+[Install]
+WantedBy=multi-user.target
