@@ -71,4 +71,7 @@ func TestProcessFeedPostsOnlyNewItemsAfterFirstRun(t *testing.T) {
 	if tg.messages[0].ChatID != "@news" {
 		t.Fatalf("chat = %q", tg.messages[0].ChatID)
 	}
+	if got := tg.messages[0].Text; got != "New\n\nhttps://example.com/new" {
+		t.Fatalf("message = %q", got)
+	}
 }

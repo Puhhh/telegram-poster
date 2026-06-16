@@ -5,14 +5,14 @@ import (
 	"testing"
 )
 
-func TestFormatBuildsTitleSummaryAndLink(t *testing.T) {
+func TestFormatBuildsTitleAndLink(t *testing.T) {
 	got := Format(Item{
 		Title:   "Hello <World>",
 		Summary: "<p>One&nbsp;<b>two</b> &amp; three</p>",
 		Link:    "https://example.com/post",
 	})
 
-	want := "Hello <World>\n\nOne two & three\n\nhttps://example.com/post"
+	want := "Hello <World>\n\nhttps://example.com/post"
 	if got != want {
 		t.Fatalf("message mismatch\nwant: %q\n got: %q", want, got)
 	}
@@ -20,9 +20,8 @@ func TestFormatBuildsTitleSummaryAndLink(t *testing.T) {
 
 func TestFormatTruncatesLongMessageKeepingLink(t *testing.T) {
 	got := Format(Item{
-		Title:   strings.Repeat("x", MaxTelegramMessageRunes),
-		Summary: "Summary",
-		Link:    "https://example.com/post",
+		Title: strings.Repeat("x", MaxTelegramMessageRunes),
+		Link:  "https://example.com/post",
 	})
 
 	if len([]rune(got)) > MaxTelegramMessageRunes {
@@ -33,18 +32,5 @@ func TestFormatTruncatesLongMessageKeepingLink(t *testing.T) {
 	}
 	if !strings.HasSuffix(got, "https://example.com/post") {
 		t.Fatalf("expected link suffix in %q", got)
-	}
-}
-
-func TestFormatShortensSummary(t *testing.T) {
-	got := Format(Item{
-		Title:   "Title",
-		Summary: strings.Repeat("я", MaxSummaryRunes+50),
-		Link:    "https://example.com/post",
-	})
-
-	want := "Title\n\n" + strings.Repeat("я", MaxSummaryRunes) + "…\n\nhttps://example.com/post"
-	if got != want {
-		t.Fatalf("message mismatch\nwant: %q\n got: %q", want, got)
 	}
 }

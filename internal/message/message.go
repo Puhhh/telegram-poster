@@ -8,11 +8,9 @@ import (
 
 const (
 	MaxTelegramMessageRunes = 4096
-	MaxSummaryRunes         = 300
 )
 
 var (
-	tagPattern        = regexp.MustCompile(`<[^>]*>`)
 	whitespacePattern = regexp.MustCompile(`\s+`)
 )
 
@@ -24,15 +22,11 @@ type Item struct {
 
 func Format(item Item) string {
 	title := cleanPlainText(item.Title)
-	summary := truncateRunes(cleanText(item.Summary), MaxSummaryRunes)
 	link := strings.TrimSpace(item.Link)
 
 	parts := make([]string, 0, 3)
 	if title != "" {
 		parts = append(parts, title)
-	}
-	if summary != "" {
-		parts = append(parts, summary)
 	}
 	if link != "" {
 		parts = append(parts, link)
@@ -48,11 +42,6 @@ func truncateRunes(value string, maxRunes int) string {
 		return value
 	}
 	return string(runes[:maxRunes]) + "…"
-}
-
-func cleanText(value string) string {
-	value = tagPattern.ReplaceAllString(value, " ")
-	return cleanPlainText(value)
 }
 
 func cleanPlainText(value string) string {

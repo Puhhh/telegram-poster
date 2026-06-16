@@ -15,7 +15,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - One-feed-to-one-channel routing with optional per-feed polling interval.
 - SQLite state store for deduplicating RSS items across restarts.
 - First-run behavior that marks existing feed items as seen without posting old entries.
-- Message formatting with title, cleaned summary, and link.
+- Message formatting with title and link only.
 - Linux `systemd` service template for VPS deployment.
 - README guide for local runs, VPS deployment, updates, troubleshooting, and security behavior.
 - Tests for config loading, message formatting, SQLite state, Telegram API requests, feed processing, daemon error handling, URL policy, redirect policy, and oversized feed rejection.
@@ -23,7 +23,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Changed
 
 - Go module now requires Go 1.25 or newer.
-- Telegram post summaries are shortened to keep messages compact.
+- Telegram post text now uses title and link only.
 - Feed errors such as `403 Forbidden` are logged per feed without stopping the daemon or blocking other feeds.
 - `golang.org/x/net` is pinned to `v0.55.0` to avoid reachable parser vulnerabilities reported by `govulncheck`.
 
