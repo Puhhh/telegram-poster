@@ -24,6 +24,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - Go module now requires Go 1.25 or newer.
 - Telegram post text now uses title and link only.
+- RSS item deduplication is now global across all feeds, with common tracking parameters ignored when comparing links.
 - Feed errors such as `403 Forbidden` are logged per feed without stopping the daemon or blocking other feeds.
 - `golang.org/x/net` is pinned to `v0.55.0` to avoid reachable parser vulnerabilities reported by `govulncheck`.
 

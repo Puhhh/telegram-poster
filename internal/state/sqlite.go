@@ -6,6 +6,8 @@ import (
 	"time"
 
 	_ "modernc.org/sqlite"
+
+	"telegram-poster/internal/dedupe"
 )
 
 type ItemMeta struct {
@@ -49,13 +51,82 @@ CREATE TABLE IF NOT EXISTS seen_items (
 	posted_at TIMESTAMP,
 	PRIMARY KEY (feed_name, item_key)
 );
+CREATE TABLE IF NOT EXISTS global_seen_items (
+	item_key TEXT PRIMARY KEY,
+	first_feed_name TEXT NOT NULL,
+	title TEXT NOT NULL,
+	link TEXT NOT NULL,
+	first_seen_at TIMESTAMP NOT NULL,
+	posted_at TIMESTAMP
+);
 `)
+	if err != nil {
+		return err
+	}
+	_, err = s.db.ExecContext(ctx, `
+INSERT OR IGNORE INTO global_seen_items (item_key, first_feed_name, title, link, first_seen_at, posted_at)
+SELECT item_key, feed_name, title, link, first_seen_at, posted_at
+FROM seen_items;
+INSERT OR IGNORE INTO global_seen_items (item_key, first_feed_name, title, link, first_seen_at, posted_at)
+SELECT link, feed_name, title, link, first_seen_at, posted_at
+FROM seen_items
+WHERE link != '';
+`)
+	if err != nil {
+		return err
+	}
+	return s.backfillCanonicalLinks(ctx)
+}
+
+func (s *SQLiteStore) backfillCanonicalLinks(ctx context.Context) error {
+	rows, err := s.db.QueryContext(ctx, `
+SELECT feed_name, title, link, first_seen_at, posted_at
+FROM seen_items
+WHERE link != ''
+`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	type seenItem struct {
+		feedName    string
+		title       string
+		link        string
+		firstSeenAt time.Time
+		postedAt    sql.NullTime
+	}
+	var items []seenItem
+	for rows.Next() {
+		var item seenItem
+		if err := rows.Scan(&item.feedName, &item.title, &item.link, &item.firstSeenAt, &item.postedAt); err != nil {
+			return err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	for _, item := range items {
+		canonicalLink := dedupe.CanonicalLink(item.link)
+		if canonicalLink == "" {
+			continue
+		}
+		if _, err := s.db.ExecContext(ctx, `
+INSERT INTO global_seen_items (item_key, first_feed_name, title, link, first_seen_at, posted_at)
+VALUES (?, ?, ?, ?, ?, ?)
+ON CONFLICT(item_key) DO NOTHING
+`, canonicalLink, item.feedName, item.title, item.link, item.firstSeenAt, item.postedAt); err != nil {
+			return err
+		}
+	}
 	return err
 }
 
-func (s *SQLiteStore) IsSeen(feedName, itemKey string) (bool, error) {
+func (s *SQLiteStore) IsSeen(itemKey string) (bool, error) {
 	var exists int
-	err := s.db.QueryRow(`SELECT 1 FROM seen_items WHERE feed_name = ? AND item_key = ?`, feedName, itemKey).Scan(&exists)
+	err := s.db.QueryRow(`SELECT 1 FROM global_seen_items WHERE item_key = ?`, itemKey).Scan(&exists)
 	if err == sql.ErrNoRows {
 		return false, nil
 	}
@@ -67,19 +138,19 @@ func (s *SQLiteStore) IsSeen(feedName, itemKey string) (bool, error) {
 
 func (s *SQLiteStore) MarkSeen(feedName, itemKey string, meta ItemMeta) error {
 	_, err := s.db.Exec(`
-INSERT INTO seen_items (feed_name, item_key, title, link, first_seen_at)
+INSERT INTO global_seen_items (item_key, first_feed_name, title, link, first_seen_at)
 VALUES (?, ?, ?, ?, ?)
-ON CONFLICT(feed_name, item_key) DO NOTHING
-`, feedName, itemKey, meta.Title, meta.Link, time.Now().UTC())
+ON CONFLICT(item_key) DO NOTHING
+`, itemKey, feedName, meta.Title, meta.Link, time.Now().UTC())
 	return err
 }
 
-func (s *SQLiteStore) MarkPosted(feedName, itemKey string) error {
+func (s *SQLiteStore) MarkPosted(itemKey string) error {
 	_, err := s.db.Exec(`
-UPDATE seen_items
+UPDATE global_seen_items
 SET posted_at = ?
-WHERE feed_name = ? AND item_key = ?
-`, time.Now().UTC(), feedName, itemKey)
+WHERE item_key = ?
+`, time.Now().UTC(), itemKey)
 	return err
 }
 

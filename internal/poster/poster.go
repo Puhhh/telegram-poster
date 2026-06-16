@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 
+	"telegram-poster/internal/dedupe"
 	"telegram-poster/internal/message"
 	"telegram-poster/internal/state"
 )
@@ -32,9 +33,9 @@ type FeedClient interface {
 }
 
 type StateStore interface {
-	IsSeen(feedName, itemKey string) (bool, error)
+	IsSeen(itemKey string) (bool, error)
 	MarkSeen(feedName, itemKey string, meta state.ItemMeta) error
-	MarkPosted(feedName, itemKey string) error
+	MarkPosted(itemKey string) error
 	IsFeedInitialized(feedName string) (bool, error)
 	MarkFeedInitialized(feedName string) error
 }
@@ -75,7 +76,7 @@ func (p *Poster) ProcessFeed(ctx context.Context, feed Feed) error {
 	for i := len(items) - 1; i >= 0; i-- {
 		item := items[i]
 		key := itemKey(item)
-		seen, err := p.store.IsSeen(feed.Name, key)
+		seen, err := p.store.IsSeen(key)
 		if err != nil {
 			return err
 		}
@@ -89,7 +90,7 @@ func (p *Poster) ProcessFeed(ctx context.Context, feed Feed) error {
 		if err := p.telegram.Send(ctx, OutgoingMessage{ChatID: feed.Channel, Text: text}); err != nil {
 			return err
 		}
-		if err := p.store.MarkPosted(feed.Name, key); err != nil {
+		if err := p.store.MarkPosted(key); err != nil {
 			return err
 		}
 	}
@@ -97,11 +98,11 @@ func (p *Poster) ProcessFeed(ctx context.Context, feed Feed) error {
 }
 
 func itemKey(item FeedItem) string {
+	if item.Link != "" {
+		return dedupe.CanonicalLink(item.Link)
+	}
 	if item.GUID != "" {
 		return item.GUID
-	}
-	if item.Link != "" {
-		return item.Link
 	}
 	sum := sha256.Sum256([]byte(item.Title + "\x00" + item.Summary))
 	return fmt.Sprintf("%x", sum[:])

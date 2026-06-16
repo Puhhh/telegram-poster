@@ -2,7 +2,7 @@
 
 > RSS/Atom/JSON feed daemon that posts new entries to Telegram channels.
 
-Telegram Poster polls configured feeds, remembers already-seen items in SQLite, and sends only new entries to the channel mapped to each feed. It is designed to run as a small `systemd` service on a Linux VPS.
+Telegram Poster polls configured feeds, remembers already-seen items in SQLite, and sends only new entries to the channel mapped to each feed. Duplicate entries are suppressed globally across all feeds so the same article is posted only once. It is designed to run as a small `systemd` service on a Linux VPS.
 
 ## Quick Start
 
@@ -38,7 +38,7 @@ export TELEGRAM_BOT_TOKEN='123456:your_token_here'
 ./telegram-poster -config config.yaml
 ```
 
-On first run, existing RSS items are marked as seen and are not posted. Only new items after that are sent.
+On first run, existing RSS items are marked as seen and are not posted. Only new items after that are sent. If the same article appears in more than one configured feed, the first feed that sees it wins and later copies are skipped.
 
 ## Configuration
 
@@ -49,7 +49,7 @@ On first run, existing RSS items are marked as seen and are not posted. Only new
 | `poll_interval` | No | `5m` | Default interval for feeds without their own `interval`. |
 | `request_timeout` | No | `20s` | HTTP timeout for feed and Telegram API requests. |
 | `database_path` | No | `telegram-poster.sqlite` | SQLite state file path. |
-| `feeds[].name` | Yes | | Stable feed identifier used for deduplication. |
+| `feeds[].name` | Yes | | Stable feed identifier used for first-run state and logs. |
 | `feeds[].url` | Yes | | Feed URL. Must be `https://`. |
 | `feeds[].channel` | Yes | | Telegram channel username, for example `@example_channel`. |
 | `feeds[].interval` | No | `poll_interval` | Per-feed polling interval. |
@@ -60,6 +60,8 @@ Security rules for feed URLs:
 - `localhost`, private IPs, loopback IPs, link-local IPs, and unspecified IPs are rejected
 - redirects are checked with the same policy
 - feed responses are capped at 5 MiB
+
+Deduplication uses the item link when available, with common tracking parameters such as `utm_*`, `fbclid`, `gclid`, and `yclid` ignored. If no link is available, the daemon falls back to the item GUID, then a title/summary hash.
 
 Keep the bot token outside `config.yaml`:
 
