@@ -18,6 +18,15 @@ Build locally:
 go build -o telegram-poster ./cmd/telegram-poster
 ```
 
+Or download a Linux VPS binary from the latest GitHub Release:
+
+```sh
+curl -L -o telegram-poster https://github.com/Puhhh/telegram-poster/releases/latest/download/telegram-poster-linux-amd64
+chmod +x telegram-poster
+```
+
+For ARM VPS hosts, download `telegram-poster-linux-arm64` instead.
+
 Create `config.yaml`:
 
 ```yaml
@@ -84,14 +93,30 @@ Create a bot with `@BotFather`, then add it as an admin to each target channel. 
 
 ### 2. Build and Copy Files
 
+Download the release binary:
+
+```sh
+curl -L -o telegram-poster https://github.com/Puhhh/telegram-poster/releases/latest/download/telegram-poster-linux-amd64
+chmod +x telegram-poster
+```
+
+For ARM VPS, use `telegram-poster-linux-arm64`.
+
+Or build locally:
+
 ```sh
 GOOS=linux GOARCH=amd64 go build -o telegram-poster ./cmd/telegram-poster
+```
+
+Copy files:
+
+```sh
 scp telegram-poster user@vps:/tmp/
 scp config.yaml user@vps:/tmp/
 scp deploy/telegram-poster.service user@vps:/tmp/
 ```
 
-For ARM VPS, use `GOARCH=arm64`.
+For ARM VPS local builds, use `GOARCH=arm64`.
 
 ### 3. Install on the VPS
 
@@ -148,6 +173,14 @@ Build a new binary locally:
 
 ```sh
 GOOS=linux GOARCH=amd64 go build -o telegram-poster ./cmd/telegram-poster
+scp telegram-poster user@vps:/tmp/telegram-poster
+```
+
+Or download the latest release binary:
+
+```sh
+curl -L -o telegram-poster https://github.com/Puhhh/telegram-poster/releases/latest/download/telegram-poster-linux-amd64
+chmod +x telegram-poster
 scp telegram-poster user@vps:/tmp/telegram-poster
 ```
 

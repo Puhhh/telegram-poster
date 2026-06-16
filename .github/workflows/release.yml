@@ -1,0 +1,81 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "*.*.*"
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate release tag
+        run: |
+          if [[ ! "$GITHUB_REF_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Release tags must use N.N.N format, got: $GITHUB_REF_NAME" >&2
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Test
+        run: go test ./...
+
+      - name: Run govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
+      - name: Build release binaries
+        run: |
+          mkdir -p dist
+          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o dist/telegram-poster-linux-amd64 ./cmd/telegram-poster
+          GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o dist/telegram-poster-linux-arm64 ./cmd/telegram-poster
+          cd dist
+          sha256sum telegram-poster-linux-* > SHA256SUMS
+
+      - name: Attest amd64 binary
+        uses: actions/attest@v4
+        with:
+          subject-path: dist/telegram-poster-linux-amd64
+
+      - name: Attest arm64 binary
+        uses: actions/attest@v4
+        with:
+          subject-path: dist/telegram-poster-linux-arm64
+
+      - name: Write release notes
+        run: |
+          awk -v version="$GITHUB_REF_NAME" '
+            $0 ~ "^## \\[" version "\\]" { in_section=1; next }
+            in_section && /^## \[/ { exit }
+            in_section { print }
+          ' CHANGELOG.md > release-notes.md
+          test -s release-notes.md
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file release-notes.md \
+            --verify-tag \
+            dist/telegram-poster-linux-amd64 \
+            dist/telegram-poster-linux-arm64 \
+            dist/SHA256SUMS
