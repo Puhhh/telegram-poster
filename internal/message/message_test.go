@@ -18,10 +18,10 @@ func TestFormatBuildsTitleSummaryAndLink(t *testing.T) {
 	}
 }
 
-func TestFormatTruncatesLongSummary(t *testing.T) {
+func TestFormatTruncatesLongMessageKeepingLink(t *testing.T) {
 	got := Format(Item{
-		Title:   "Title",
-		Summary: strings.Repeat("x", 5000),
+		Title:   strings.Repeat("x", MaxTelegramMessageRunes),
+		Summary: "Summary",
 		Link:    "https://example.com/post",
 	})
 
@@ -33,5 +33,18 @@ func TestFormatTruncatesLongSummary(t *testing.T) {
 	}
 	if !strings.HasSuffix(got, "https://example.com/post") {
 		t.Fatalf("expected link suffix in %q", got)
+	}
+}
+
+func TestFormatShortensSummary(t *testing.T) {
+	got := Format(Item{
+		Title:   "Title",
+		Summary: strings.Repeat("я", MaxSummaryRunes+50),
+		Link:    "https://example.com/post",
+	})
+
+	want := "Title\n\n" + strings.Repeat("я", MaxSummaryRunes) + "…\n\nhttps://example.com/post"
+	if got != want {
+		t.Fatalf("message mismatch\nwant: %q\n got: %q", want, got)
 	}
 }
