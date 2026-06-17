@@ -232,7 +232,7 @@ Common cases:
 
 - `TELEGRAM_BOT_TOKEN is required`: `/etc/telegram-poster/env` is missing, unreadable, or does not define the token.
 - `telegram sendMessage failed: Bad Request: chat not found`: channel username is wrong or the bot is not a channel admin.
-- `feed returned 403 Forbidden`: feed blocks the server. The daemon logs the error and continues with other feeds.
+- `feed returned 403 Forbidden`: feed blocks the server or rejects Go's default HTTP client fingerprint. The daemon now sends an explicit app `User-Agent` and RSS `Accept` header, but some feeds may still block the VPS IP.
 - `url is unsafe`: feed URL is not `https://` or points to a blocked local/private address.
 - no posts after first start: expected. First run marks existing feed items as seen.
 
