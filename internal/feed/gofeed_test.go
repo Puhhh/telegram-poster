@@ -36,3 +36,26 @@ func TestFetchRejectsOversizedResponse(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
+
+func TestFetchSetsBrowserFriendlyHeaders(t *testing.T) {
+	client := NewClient(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		if got := req.Header.Get("User-Agent"); got != "TelegramPoster/1.0 (+https://github.com/puhhh/telegram-poster)" {
+			t.Fatalf("user-agent = %q", got)
+		}
+		if got := req.Header.Get("Accept"); got != "application/rss+xml, application/atom+xml, application/xml, text/xml, */*;q=0.8" {
+			t.Fatalf("accept = %q", got)
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Status:     "200 OK",
+			Body:       io.NopCloser(strings.NewReader(`<rss><channel></channel></rss>`)),
+			Header:     make(http.Header),
+			Request:    req,
+		}, nil
+	})})
+
+	_, err := client.Fetch(context.Background(), "https://example.com/feed.xml")
+	if err != nil {
+		t.Fatalf("Fetch() error = %v", err)
+	}
+}

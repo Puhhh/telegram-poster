@@ -12,6 +12,10 @@ import (
 )
 
 const MaxFeedBytes = 5 << 20
+const (
+	defaultUserAgent = "TelegramPoster/1.0 (+https://github.com/puhhh/telegram-poster)"
+	defaultAccept    = "application/rss+xml, application/atom+xml, application/xml, text/xml, */*;q=0.8"
+)
 
 type Client struct {
 	httpClient *http.Client
@@ -26,6 +30,8 @@ func (c *Client) Fetch(ctx context.Context, url string) ([]poster.FeedItem, erro
 	if err != nil {
 		return nil, err
 	}
+	req.Header.Set("User-Agent", defaultUserAgent)
+	req.Header.Set("Accept", defaultAccept)
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, err

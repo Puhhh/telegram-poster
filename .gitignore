@@ -1,7 +1,5 @@
-.gocache/
-.gomodcache/
-.gotmp/
-/telegram-poster
+.cache/
 *.sqlite
 *.sqlite-*
 config.yaml
+/telegram-poster

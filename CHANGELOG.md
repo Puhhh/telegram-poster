@@ -4,6 +4,12 @@ All notable changes to Telegram Poster are documented in this file.
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-06-17
+
+### Changed
+
+- Feed fetches now send an explicit app `User-Agent` and RSS `Accept` header to avoid common `403 Forbidden` blocks from feeds that reject Go's default HTTP client fingerprint.
+
 ## [0.1.1] - 2026-06-17
 
 ### Changed
