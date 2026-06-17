@@ -3,8 +3,11 @@ package telegram
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strings"
 	"testing"
 )
 
@@ -46,5 +49,28 @@ func TestSendMessageReturnsTelegramError(t *testing.T) {
 	err := client.SendMessage(context.Background(), Message{ChatID: "@missing", Text: "hello"})
 	if err == nil {
 		t.Fatal("expected Telegram error")
+	}
+}
+
+func TestSendMessageRedactsTokenFromNetworkErrors(t *testing.T) {
+	client := NewClient("123:secret", WithHTTPClient(&http.Client{Transport: failingTransport{}}))
+	err := client.SendMessage(context.Background(), Message{ChatID: "@channel", Text: "hello"})
+	if err == nil {
+		t.Fatal("expected network error")
+	}
+
+	got := err.Error()
+	if strings.Contains(got, "123:secret") || strings.Contains(got, "/bot") {
+		t.Fatalf("error leaks bot token: %q", got)
+	}
+}
+
+type failingTransport struct{}
+
+func (failingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	return nil, &url.Error{
+		Op:  "Post",
+		URL: req.URL.String(),
+		Err: errors.New("network down"),
 	}
 }
