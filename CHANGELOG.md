@@ -2,9 +2,20 @@
 
 All notable changes to Telegram Poster are documented in this file.
 
-The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project uses semantic versioning once releases begin.
-
 ## [Unreleased]
+
+## [0.1.1] - 2026-06-17
+
+### Changed
+
+- Updated the release workflow to use `actions/checkout@v6` and `actions/setup-go@v6`.
+- Split the release workflow into read-only build/test and write-scoped publish jobs, with release artifacts passed between jobs.
+- Pinned `govulncheck` in the release workflow to `v1.3.0`.
+- Expanded README setup, release artifact, checksum verification, and local build guidance.
+
+### Security
+
+- Prevented Telegram network errors from including the bot token URL in returned errors and logs.
 
 ## [0.1.0] - 2026-06-16
 

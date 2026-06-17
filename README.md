@@ -4,6 +4,8 @@
 
 Telegram Poster polls configured feeds, remembers already-seen items in SQLite, and sends only new entries to the channel mapped to each feed. Duplicate entries are suppressed globally across all feeds so the same article is posted only once. It is designed to run as a small `systemd` service on a Linux VPS.
 
+Use it when you want a small self-hosted feed-to-Telegram bridge without a database server, a web UI, or long-lived credentials in config files.
+
 ## Quick Start
 
 Prerequisites:
@@ -25,9 +27,15 @@ curl -L -o telegram-poster https://github.com/Puhhh/telegram-poster/releases/lat
 chmod +x telegram-poster
 ```
 
-For ARM VPS hosts, download `telegram-poster-linux-arm64` instead.
+For ARM VPS hosts, download `telegram-poster-linux-arm64` instead. Each release also publishes `SHA256SUMS` and GitHub artifact attestations for the Linux binaries.
 
 Create `config.yaml`:
+
+```sh
+cp config.example.yaml config.yaml
+```
+
+Then edit the feeds:
 
 ```yaml
 poll_interval: 5m
@@ -38,6 +46,7 @@ feeds:
   - name: example-news
     url: https://example.com/rss.xml
     channel: "@example_channel"
+    interval: 2m
 ```
 
 Run:
@@ -48,6 +57,8 @@ export TELEGRAM_BOT_TOKEN='123456:your_token_here'
 ```
 
 On first run, existing RSS items are marked as seen and are not posted. Only new items after that are sent. If the same article appears in more than one configured feed, the first feed that sees it wins and later copies are skipped.
+
+Each Telegram message contains the feed item title and source link. Long messages are truncated to fit Telegram's 4096-character message limit while keeping the link when possible.
 
 ## Configuration
 
@@ -101,6 +112,13 @@ chmod +x telegram-poster
 ```
 
 For ARM VPS, use `telegram-poster-linux-arm64`.
+
+You can verify the downloaded binary with the release `SHA256SUMS` file:
+
+```sh
+curl -L -o SHA256SUMS https://github.com/Puhhh/telegram-poster/releases/latest/download/SHA256SUMS
+sha256sum -c SHA256SUMS --ignore-missing
+```
 
 Or build locally:
 
@@ -230,4 +248,10 @@ Run dependency vulnerability check:
 
 ```sh
 go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+```
+
+Build a local binary:
+
+```sh
+go build -o telegram-poster ./cmd/telegram-poster
 ```

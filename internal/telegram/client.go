@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -68,8 +70,8 @@ func (c *Client) SendMessage(ctx context.Context, msg Message) error {
 		return err
 	}
 
-	url := fmt.Sprintf("%s/bot%s/sendMessage", c.baseURL, c.token)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	endpointURL := fmt.Sprintf("%s/bot%s/sendMessage", c.baseURL, c.token)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpointURL, bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
@@ -77,7 +79,7 @@ func (c *Client) SendMessage(ctx context.Context, msg Message) error {
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return err
+		return fmt.Errorf("telegram sendMessage request failed: %w", sanitizeRequestError(err))
 	}
 	defer resp.Body.Close()
 
@@ -92,4 +94,12 @@ func (c *Client) SendMessage(ctx context.Context, msg Message) error {
 		return fmt.Errorf("telegram sendMessage failed: %s", apiResp.Description)
 	}
 	return nil
+}
+
+func sanitizeRequestError(err error) error {
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) {
+		return fmt.Errorf("%s: %w", urlErr.Op, sanitizeRequestError(urlErr.Err))
+	}
+	return err
 }
