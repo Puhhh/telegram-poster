@@ -19,8 +19,15 @@ func CanonicalLink(link string) string {
 		}
 	}
 	parsed.RawQuery = query.Encode()
-	parsed.Fragment = ""
+	if isIgnorableFragment(parsed.Fragment) {
+		parsed.Fragment = ""
+	}
 	parsed.Scheme = strings.ToLower(parsed.Scheme)
 	parsed.Host = strings.ToLower(parsed.Host)
 	return parsed.String()
+}
+
+func isIgnorableFragment(fragment string) bool {
+	lower := strings.ToLower(strings.TrimSpace(fragment))
+	return lower == "comments" || strings.HasPrefix(lower, "comment-")
 }

@@ -4,6 +4,14 @@ All notable changes to Telegram Poster are documented in this file.
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-06-20
+
+### Fixed
+
+- Preserve RSS item link fragments when they identify distinct feed entries, fixing feeds such as Lichess that publish multiple items under the same base URL with different fragments.
+- Keep comment-style fragments such as `#comments` ignored during link deduplication so common article comment anchors do not create duplicate posts.
+- Retry posting a new item after a Telegram `sendMessage` timeout or network failure instead of marking it as seen before delivery succeeds.
+
 ## [0.1.2] - 2026-06-17
 
 ### Changed

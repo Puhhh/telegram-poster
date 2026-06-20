@@ -83,11 +83,11 @@ func (p *Poster) ProcessFeed(ctx context.Context, feed Feed) error {
 		if seen {
 			continue
 		}
-		if err := p.store.MarkSeen(feed.Name, key, state.ItemMeta{Title: item.Title, Link: item.Link}); err != nil {
-			return err
-		}
 		text := message.Format(message.Item{Title: item.Title, Summary: item.Summary, Link: item.Link})
 		if err := p.telegram.Send(ctx, OutgoingMessage{ChatID: feed.Channel, Text: text}); err != nil {
+			return err
+		}
+		if err := p.store.MarkSeen(feed.Name, key, state.ItemMeta{Title: item.Title, Link: item.Link}); err != nil {
 			return err
 		}
 		if err := p.store.MarkPosted(key); err != nil {
