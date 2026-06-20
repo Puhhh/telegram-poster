@@ -1,4 +1,7 @@
 .cache/
+.gocache/
+.gomodcache/
+.gotmp/
 *.sqlite
 *.sqlite-*
 config.yaml

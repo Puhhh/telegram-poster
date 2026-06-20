@@ -2,6 +2,7 @@ package poster
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"testing"
 
@@ -24,9 +25,13 @@ func (f fakeFeedClientByURL) Fetch(ctx context.Context, url string) ([]FeedItem,
 
 type fakeTelegram struct {
 	messages []OutgoingMessage
+	err      error
 }
 
 func (f *fakeTelegram) Send(ctx context.Context, msg OutgoingMessage) error {
+	if f.err != nil {
+		return f.err
+	}
 	f.messages = append(f.messages, msg)
 	return nil
 }
@@ -76,6 +81,43 @@ func TestProcessFeedPostsOnlyNewItemsAfterFirstRun(t *testing.T) {
 	}
 	if tg.messages[0].ChatID != "@news" {
 		t.Fatalf("chat = %q", tg.messages[0].ChatID)
+	}
+	if got := tg.messages[0].Text; got != "New\n\nhttps://example.com/new" {
+		t.Fatalf("message = %q", got)
+	}
+}
+
+func TestProcessFeedRetriesItemAfterTelegramSendFailure(t *testing.T) {
+	store, err := state.OpenSQLite(filepath.Join(t.TempDir(), "state.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	tg := &fakeTelegram{}
+	p := New(fakeFeedClient{items: []FeedItem{{GUID: "1", Title: "Old", Link: "https://example.com/old"}}}, store, tg)
+	feed := Feed{Name: "news", URL: "https://example.com/rss", Channel: "@news"}
+	if err := p.ProcessFeed(context.Background(), feed); err != nil {
+		t.Fatal(err)
+	}
+
+	p.feedClient = fakeFeedClient{items: []FeedItem{
+		{GUID: "2", Title: "New", Link: "https://example.com/new"},
+	}}
+	tg.err = errors.New("telegram timeout")
+	if err := p.ProcessFeed(context.Background(), feed); err == nil {
+		t.Fatal("expected telegram send failure")
+	}
+	if len(tg.messages) != 0 {
+		t.Fatalf("posted messages after failed send = %d", len(tg.messages))
+	}
+
+	tg.err = nil
+	if err := p.ProcessFeed(context.Background(), feed); err != nil {
+		t.Fatal(err)
+	}
+	if len(tg.messages) != 1 {
+		t.Fatalf("posted messages after retry = %d", len(tg.messages))
 	}
 	if got := tg.messages[0].Text; got != "New\n\nhttps://example.com/new" {
 		t.Fatalf("message = %q", got)
