@@ -35,7 +35,7 @@ type FeedClient interface {
 type StateStore interface {
 	IsSeen(itemKey string) (bool, error)
 	MarkSeen(feedName, itemKey string, meta state.ItemMeta) error
-	MarkPosted(itemKey string) error
+	MarkSeenAndPosted(feedName, itemKey string, meta state.ItemMeta) error
 	IsFeedInitialized(feedName string) (bool, error)
 	MarkFeedInitialized(feedName string) error
 }
@@ -87,10 +87,7 @@ func (p *Poster) ProcessFeed(ctx context.Context, feed Feed) error {
 		if err := p.telegram.Send(ctx, OutgoingMessage{ChatID: feed.Channel, Text: text}); err != nil {
 			return err
 		}
-		if err := p.store.MarkSeen(feed.Name, key, state.ItemMeta{Title: item.Title, Link: item.Link}); err != nil {
-			return err
-		}
-		if err := p.store.MarkPosted(key); err != nil {
+		if err := p.store.MarkSeenAndPosted(feed.Name, key, state.ItemMeta{Title: item.Title, Link: item.Link}); err != nil {
 			return err
 		}
 	}

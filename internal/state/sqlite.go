@@ -75,7 +75,10 @@ WHERE link != '';
 	if err != nil {
 		return err
 	}
-	return s.backfillCanonicalLinks(ctx)
+	if err := s.backfillCanonicalLinks(ctx); err != nil {
+		return err
+	}
+	return s.pruneNonCanonicalLinkRows(ctx)
 }
 
 func (s *SQLiteStore) backfillCanonicalLinks(ctx context.Context) error {
@@ -124,6 +127,60 @@ ON CONFLICT(item_key) DO NOTHING
 	return err
 }
 
+func (s *SQLiteStore) pruneNonCanonicalLinkRows(ctx context.Context) error {
+	rows, err := s.db.QueryContext(ctx, `
+SELECT item_key, first_feed_name, title, link, first_seen_at, posted_at
+FROM global_seen_items
+WHERE link != ''
+`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	type globalItem struct {
+		itemKey       string
+		firstFeedName string
+		title         string
+		link          string
+		firstSeenAt   time.Time
+		postedAt      sql.NullTime
+	}
+	var items []globalItem
+	for rows.Next() {
+		var item globalItem
+		if err := rows.Scan(&item.itemKey, &item.firstFeedName, &item.title, &item.link, &item.firstSeenAt, &item.postedAt); err != nil {
+			return err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	for _, item := range items {
+		canonicalLink := dedupe.CanonicalLink(item.link)
+		if canonicalLink == "" || canonicalLink == item.itemKey {
+			continue
+		}
+		if _, err := s.db.ExecContext(ctx, `
+INSERT INTO global_seen_items (item_key, first_feed_name, title, link, first_seen_at, posted_at)
+VALUES (?, ?, ?, ?, ?, ?)
+ON CONFLICT(item_key) DO UPDATE SET
+	posted_at = CASE
+		WHEN global_seen_items.posted_at IS NULL THEN excluded.posted_at
+		ELSE global_seen_items.posted_at
+	END
+`, canonicalLink, item.firstFeedName, item.title, item.link, item.firstSeenAt, item.postedAt); err != nil {
+			return err
+		}
+		if _, err := s.db.ExecContext(ctx, `DELETE FROM global_seen_items WHERE item_key = ?`, item.itemKey); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (s *SQLiteStore) IsSeen(itemKey string) (bool, error) {
 	var exists int
 	err := s.db.QueryRow(`SELECT 1 FROM global_seen_items WHERE item_key = ?`, itemKey).Scan(&exists)
@@ -151,6 +208,20 @@ UPDATE global_seen_items
 SET posted_at = ?
 WHERE item_key = ?
 `, time.Now().UTC(), itemKey)
+	return err
+}
+
+func (s *SQLiteStore) MarkSeenAndPosted(feedName, itemKey string, meta ItemMeta) error {
+	now := time.Now().UTC()
+	_, err := s.db.Exec(`
+INSERT INTO global_seen_items (item_key, first_feed_name, title, link, first_seen_at, posted_at)
+VALUES (?, ?, ?, ?, ?, ?)
+ON CONFLICT(item_key) DO UPDATE SET
+	posted_at = CASE
+		WHEN global_seen_items.posted_at IS NULL THEN excluded.posted_at
+		ELSE global_seen_items.posted_at
+	END
+`, itemKey, feedName, meta.Title, meta.Link, now, now)
 	return err
 }
 

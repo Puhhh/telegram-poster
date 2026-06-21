@@ -4,6 +4,13 @@ All notable changes to Telegram Poster are documented in this file.
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-06-21
+
+### Fixed
+
+- Store newly delivered feed items as seen and posted in one SQLite write so a crash or database error cannot leave them permanently skipped with an empty `posted_at`.
+- Collapse legacy raw tracking-URL rows into their canonical deduplication key during SQLite migration.
+
 ## [0.1.3] - 2026-06-20
 
 ### Fixed
