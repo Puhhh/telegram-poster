@@ -4,6 +4,12 @@ All notable changes to Telegram Poster are documented in this file.
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-06-22
+
+### Fixed
+
+- Retry a feed fetch once when XML parsing fails with an EOF-like truncated response, and include fetch attempt metadata in the returned error.
+
 ## [0.1.4] - 2026-06-21
 
 ### Fixed
