@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"strings"
 	"time"
@@ -16,6 +17,7 @@ import (
 
 const MaxFeedBytes = 5 << 20
 const maxFetchAttempts = 2
+const maxRedirects = 10
 const (
 	defaultUserAgent = "TelegramPoster/1.0 (+https://github.com/puhhh/telegram-poster)"
 	defaultAccept    = "application/rss+xml, application/atom+xml, application/xml, text/xml, */*;q=0.8"
@@ -26,7 +28,25 @@ type Client struct {
 }
 
 func NewClient(httpClient *http.Client) *Client {
-	return &Client{httpClient: httpClient}
+	client := *httpClient
+	originalCheckRedirect := client.CheckRedirect
+	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if originalCheckRedirect != nil {
+			if err := originalCheckRedirect(req, via); err != nil {
+				return err
+			}
+		}
+		if len(via) >= maxRedirects {
+			return fmt.Errorf("stopped after %d redirects", maxRedirects)
+		}
+		if req.Response != nil &&
+			isRedirectStatus(req.Response.StatusCode) &&
+			isFeedMediaType(req.Response.Header.Get("Content-Type")) {
+			return http.ErrUseLastResponse
+		}
+		return nil
+	}
+	return &Client{httpClient: &client}
 }
 
 func (c *Client) Fetch(ctx context.Context, url string) ([]poster.FeedItem, error) {
@@ -56,7 +76,8 @@ func (c *Client) fetchOnce(ctx context.Context, url string, attempt int) ([]post
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+	feedRedirect := isRedirectStatus(resp.StatusCode) && isFeedMediaType(resp.Header.Get("Content-Type"))
+	if (resp.StatusCode < 200 || resp.StatusCode >= 300) && !feedRedirect {
 		return nil, false, fetchError(attempt, resp.Status, 0, start, fmt.Errorf("feed returned %s", resp.Status))
 	}
 
@@ -78,6 +99,32 @@ func (c *Client) fetchOnce(ctx context.Context, url string, attempt int) ([]post
 		})
 	}
 	return items, false, nil
+}
+
+func isRedirectStatus(statusCode int) bool {
+	switch statusCode {
+	case http.StatusMovedPermanently,
+		http.StatusFound,
+		http.StatusSeeOther,
+		http.StatusTemporaryRedirect,
+		http.StatusPermanentRedirect:
+		return true
+	default:
+		return false
+	}
+}
+
+func isFeedMediaType(contentType string) bool {
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return false
+	}
+	switch strings.ToLower(mediaType) {
+	case "application/rss+xml", "application/atom+xml", "application/xml", "text/xml":
+		return true
+	default:
+		return false
+	}
 }
 
 func firstNonEmpty(values ...string) string {
