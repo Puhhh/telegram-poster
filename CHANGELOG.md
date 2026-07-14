@@ -4,6 +4,8 @@ All notable changes to Telegram Poster are documented in this file.
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-07-14
+
 ### Fixed
 
 - Parse valid RSS or Atom bodies returned with redirect responses instead of following the redirect to a non-feed page, while preserving redirect URL validation.
