@@ -2,6 +2,7 @@ package feed
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -149,5 +150,162 @@ func TestFetchIncludesAttemptMetadataAfterRetryFailure(t *testing.T) {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("error = %q, want substring %q", err.Error(), want)
 		}
+	}
+}
+
+func TestFetchParsesFeedBodyReturnedWithRedirect(t *testing.T) {
+	requests := 0
+	redirectChecked := false
+	client := NewClient(&http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			requests++
+			return &http.Response{
+				StatusCode: http.StatusFound,
+				Status:     "302 Found",
+				Body: io.NopCloser(strings.NewReader(
+					`<rss><channel><item><title>redirect feed</title><link>https://example.com/item</link></item></channel></rss>`,
+				)),
+				Header: http.Header{
+					"Content-Type": []string{"application/rss+xml; charset=UTF-8"},
+					"Location":     []string{"https://example.com/"},
+				},
+				Request: req,
+			}, nil
+		}),
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			redirectChecked = true
+			if got := req.URL.String(); got != "https://example.com/" {
+				t.Fatalf("redirect URL = %q", got)
+			}
+			return nil
+		},
+	})
+
+	items, err := client.Fetch(context.Background(), "https://example.com/feed.xml")
+	if err != nil {
+		t.Fatalf("Fetch() error = %v", err)
+	}
+	if !redirectChecked {
+		t.Fatal("redirect policy was not checked")
+	}
+	if requests != 1 {
+		t.Fatalf("requests = %d, want 1", requests)
+	}
+	if len(items) != 1 || items[0].Title != "redirect feed" {
+		t.Fatalf("items = %+v", items)
+	}
+}
+
+func TestFetchFollowsOrdinaryRedirect(t *testing.T) {
+	requests := 0
+	client := NewClient(&http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			requests++
+			if req.URL.Path == "/feed.xml" {
+				return &http.Response{
+					StatusCode: http.StatusFound,
+					Status:     "302 Found",
+					Body:       io.NopCloser(strings.NewReader(`<html>redirecting</html>`)),
+					Header: http.Header{
+						"Content-Type": []string{"text/html"},
+						"Location":     []string{"https://example.com/final.xml"},
+					},
+					Request: req,
+				}, nil
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Status:     "200 OK",
+				Body: io.NopCloser(strings.NewReader(
+					`<rss><channel><item><title>final feed</title></item></channel></rss>`,
+				)),
+				Header:  make(http.Header),
+				Request: req,
+			}, nil
+		}),
+		CheckRedirect: func(req *http.Request, via []*http.Request) error { return nil },
+	})
+
+	items, err := client.Fetch(context.Background(), "https://example.com/feed.xml")
+	if err != nil {
+		t.Fatalf("Fetch() error = %v", err)
+	}
+	if requests != 2 {
+		t.Fatalf("requests = %d, want 2", requests)
+	}
+	if len(items) != 1 || items[0].Title != "final feed" {
+		t.Fatalf("items = %+v", items)
+	}
+}
+
+func TestFetchRejectsUnsafeFeedRedirectBeforeParsing(t *testing.T) {
+	requests := 0
+	client := NewClient(&http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			requests++
+			return &http.Response{
+				StatusCode: http.StatusFound,
+				Status:     "302 Found",
+				Body:       io.NopCloser(strings.NewReader(`<rss><channel></channel></rss>`)),
+				Header: http.Header{
+					"Content-Type": []string{"application/rss+xml"},
+					"Location":     []string{"http://127.0.0.1/feed.xml"},
+				},
+				Request: req,
+			}, nil
+		}),
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return errors.New("unsafe redirect")
+		},
+	})
+
+	_, err := client.Fetch(context.Background(), "https://example.com/feed.xml")
+	if err == nil || !strings.Contains(err.Error(), "unsafe redirect") {
+		t.Fatalf("Fetch() error = %v", err)
+	}
+	if requests != 1 {
+		t.Fatalf("requests = %d, want 1", requests)
+	}
+}
+
+func TestFetchRejectsErrorStatusWithFeedMediaType(t *testing.T) {
+	client := NewClient(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusNotFound,
+			Status:     "404 Not Found",
+			Body:       io.NopCloser(strings.NewReader(`<rss><channel></channel></rss>`)),
+			Header:     http.Header{"Content-Type": []string{"application/rss+xml"}},
+			Request:    req,
+		}, nil
+	})})
+
+	_, err := client.Fetch(context.Background(), "https://example.com/feed.xml")
+	if err == nil || !strings.Contains(err.Error(), "feed returned 404 Not Found") {
+		t.Fatalf("Fetch() error = %v", err)
+	}
+}
+
+func TestFetchStopsAfterTenOrdinaryRedirects(t *testing.T) {
+	requests := 0
+	client := NewClient(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		requests++
+		return &http.Response{
+			StatusCode: http.StatusFound,
+			Status:     "302 Found",
+			Body:       io.NopCloser(strings.NewReader(`<html>redirecting</html>`)),
+			Header: http.Header{
+				"Content-Type": []string{"text/html"},
+				"Location":     []string{"https://example.com/feed.xml"},
+			},
+			Request: req,
+		}, nil
+	})})
+
+	_, err := client.Fetch(context.Background(), "https://example.com/feed.xml")
+	if err == nil || !strings.Contains(err.Error(), "stopped after 10 redirects") {
+		t.Fatalf("Fetch() error = %v", err)
+	}
+	if requests != maxRedirects {
+		t.Fatalf("requests = %d, want %d", requests, maxRedirects)
 	}
 }
